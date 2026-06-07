@@ -1,0 +1,50 @@
+# CMake build directories
+/build/
+/build-*/
+/cmake-build-*/
+/out/
+
+# Accidental in-source CMake output
+/CMakeFiles/
+/CMakeCache.txt
+/cmake_install.cmake
+/CTestTestfile.cmake
+/Testing/
+/_deps/
+/compile_commands.json
+
+# Compiler and linker artifacts
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dylib
+*.dll
+*.exe
+*.dSYM/
+
+# Test, coverage, and profiling output
+*.gcda
+*.gcno
+*.gcov
+*.profraw
+*.profdata
+coverage/
+
+# Logs and temporary files
+*.log
+*.tmp
+*.swp
+*.swo
+*~
+
+# Local editor and IDE state
+.idea/
+.vscode/
+*.user
+*.user.*
+
+# Operating-system metadata
+.DS_Store
+Thumbs.db
