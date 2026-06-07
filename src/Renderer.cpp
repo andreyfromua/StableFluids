@@ -25,6 +25,7 @@ bool Renderer::reload_shaders() {
     ok &= dye_prog_     .load(shader_dir_, "fullscreen.vert", "render_dye.frag");
     ok &= scalar_prog_  .load(shader_dir_, "fullscreen.vert", "render_scalar.frag");
     ok &= velocity_prog_.load(shader_dir_, "fullscreen.vert", "render_velocity.frag");
+    ok &= stress_prog_  .load(shader_dir_, "fullscreen.vert", "render_stress.frag");
     return ok;
 }
 
@@ -67,6 +68,7 @@ void Renderer::render(const FluidGrid& grid,
         case ViewMode::Temperature:  render_scalar(grid.temperature().read(),0.5f,0.0f, true);      break;
         case ViewMode::Vorticity:    render_scalar(grid.vorticity(),        2.0f, 0.0f, true);      break;
         case ViewMode::SolidMask:    render_scalar(grid.solid_mask(),       1.0f, 0.0f, false);     break;
+        case ViewMode::Stress:       render_stress(grid, config);                                    break;
         default: break;
     }
 }
@@ -97,6 +99,18 @@ void Renderer::render_velocity(const FluidGrid& grid) {
     velocity_prog_.set_int  ("u_v", 1);
     velocity_prog_.set_ivec2("u_grid_size", grid.nx(), grid.ny());
     velocity_prog_.set_float("u_scale", 3.0f);
+    glDrawArrays(GL_TRIANGLES, 0, 3);
+}
+
+void Renderer::render_stress(const FluidGrid& grid,
+                             const SimulationConfig& config)
+{
+    stress_prog_.use();
+    grid.stress().bind(0);
+    stress_prog_.set_int("u_stress", 0);
+    stress_prog_.set_int("u_mode",
+                         static_cast<int>(config.stress_display_mode));
+    stress_prog_.set_float("u_scale", config.stress_display_scale);
     glDrawArrays(GL_TRIANGLES, 0, 3);
 }
 

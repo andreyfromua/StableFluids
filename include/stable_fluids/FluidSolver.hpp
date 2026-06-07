@@ -42,8 +42,11 @@ public:
     /// Recompute the cell-centered vorticity texture (for diagnostics).
     void compute_vorticity();
 
-    /// Recompute the velocity gradient diagnostic.
-    void compute_velocity_gradient(Texture2D& target);
+    /// Recompute the cell-centered velocity gradient diagnostic.
+    void compute_velocity_gradient();
+
+    /// Recompute the cell-centered Cauchy stress tensor diagnostic.
+    void compute_stress();
 
     /// Compute divergence into grid_.divergence() (for diagnostic display).
     void compute_divergence_into_grid();
@@ -109,6 +112,9 @@ private:
     ShaderProgram vorticity_force_u_;
     ShaderProgram vorticity_force_v_;
     ShaderProgram velocity_gradient_;
+    ShaderProgram stress_tensor_;
+
+    float last_step_dt_ = 1.0f / 60.0f;
 };
 
 }  // namespace stable_fluids

@@ -48,6 +48,7 @@ bool FluidSolver::reload_shaders() {
     ok &= vorticity_force_u_.load(shader_dir_, "fullscreen.vert", "vorticity_force_u.frag");
     ok &= vorticity_force_v_.load(shader_dir_, "fullscreen.vert", "vorticity_force_v.frag");
     ok &= velocity_gradient_.load(shader_dir_, "fullscreen.vert", "velocity_gradient.frag");
+    ok &= stress_tensor_.load(shader_dir_, "fullscreen.vert", "stress_tensor.frag");
     return ok;
 }
 
@@ -431,7 +432,8 @@ void FluidSolver::vorticity_confinement(float dt) {
     grid_.v().swap();
 }
 
-void FluidSolver::compute_velocity_gradient(Texture2D& target) {
+void FluidSolver::compute_velocity_gradient() {
+    Texture2D& target = grid_.velocity_gradient();
     fbo_.attach(target);
     velocity_gradient_.use();
     grid_.u().read().bind(0);
@@ -442,11 +444,31 @@ void FluidSolver::compute_velocity_gradient(Texture2D& target) {
     draw_pass(target);
 }
 
+void FluidSolver::compute_stress() {
+    compute_velocity_gradient();
+
+    const float active_viscosity =
+        config_.diffusion_enabled ? config_.viscosity : 0.0f;
+
+    fbo_.attach(grid_.stress());
+    stress_tensor_.use();
+    grid_.velocity_gradient().bind(0);
+    grid_.pressure().read().bind(1);
+    stress_tensor_.set_int("u_velocity_gradient", 0);
+    stress_tensor_.set_int("u_projection_potential", 1);
+    stress_tensor_.set_float("u_density", config_.fluid_density);
+    stress_tensor_.set_float("u_kinematic_viscosity", active_viscosity);
+    stress_tensor_.set_float("u_dt", last_step_dt_);
+    draw_pass(grid_.stress());
+}
+
 // ---------------------------------------------------------------------------
 // One simulation substep
 // ---------------------------------------------------------------------------
 
 void FluidSolver::step(float dt, const EmitterPulse& emitter) {
+    last_step_dt_ = dt;
+
     // 1. Inject scalar sources.
     if (emitter.active) {
         if (emitter.smoke != 0.0f) {

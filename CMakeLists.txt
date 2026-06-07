@@ -11,6 +11,8 @@ option(STABLE_FLUIDS_BUILD_TESTS "Build CPU and GPU tests"                 ON)
 option(STABLE_FLUIDS_WARNINGS_AS_ERRORS "Promote warnings to errors"       OFF)
 option(STABLE_FLUIDS_ENABLE_SANITIZERS "Enable ASan/UBSan in debug builds" OFF)
 option(STABLE_FLUIDS_FETCH_GLFW "Fall back to FetchContent for GLFW"       ON)
+set(STABLE_FLUIDS_IMGUI_SOURCE_DIR "" CACHE PATH
+    "Path to a local Dear ImGui source tree; empty fetches the pinned release")
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -26,6 +28,7 @@ endif()
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(CompilerWarnings)
 include(Sanitizers)
+include(FetchContent)
 
 # ---------------------------------------------------------------------------
 # OpenGL + GLFW dependencies
@@ -42,7 +45,6 @@ find_package(glfw3 3.3 QUIET)
 if(NOT glfw3_FOUND)
     if(STABLE_FLUIDS_FETCH_GLFW)
         message(STATUS "GLFW not found locally; fetching pinned source...")
-        include(FetchContent)
         FetchContent_Declare(
             glfw
             GIT_REPOSITORY https://github.com/glfw/glfw.git
@@ -53,6 +55,35 @@ if(NOT glfw3_FOUND)
         message(FATAL_ERROR "GLFW not found and STABLE_FLUIDS_FETCH_GLFW is OFF.")
     endif()
 endif()
+
+# ---------------------------------------------------------------------------
+# Dear ImGui
+# ---------------------------------------------------------------------------
+if(STABLE_FLUIDS_IMGUI_SOURCE_DIR)
+    set(imgui_SOURCE_DIR "${STABLE_FLUIDS_IMGUI_SOURCE_DIR}")
+else()
+    FetchContent_Declare(
+        imgui
+        GIT_REPOSITORY https://github.com/ocornut/imgui.git
+        GIT_TAG        v1.92.8
+        GIT_SHALLOW    TRUE
+    )
+    FetchContent_MakeAvailable(imgui)
+endif()
+
+add_library(imgui STATIC
+    "${imgui_SOURCE_DIR}/imgui.cpp"
+    "${imgui_SOURCE_DIR}/imgui_draw.cpp"
+    "${imgui_SOURCE_DIR}/imgui_tables.cpp"
+    "${imgui_SOURCE_DIR}/imgui_widgets.cpp"
+    "${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp"
+    "${imgui_SOURCE_DIR}/backends/imgui_impl_opengl3.cpp"
+)
+target_include_directories(imgui PUBLIC
+    "${imgui_SOURCE_DIR}"
+    "${imgui_SOURCE_DIR}/backends"
+)
+target_link_libraries(imgui PUBLIC glfw OpenGL::GL)
 
 # ---------------------------------------------------------------------------
 # Hand-rolled minimal GLAD loader for OpenGL 4.1 Core
@@ -73,11 +104,12 @@ set(STABLE_FLUIDS_SOURCES
     src/Renderer.cpp
     src/ShaderProgram.cpp
     src/Texture2D.cpp
+    src/UserInterface.cpp
 )
 
 add_library(stable_fluids_core STATIC ${STABLE_FLUIDS_SOURCES})
 target_include_directories(stable_fluids_core PUBLIC include)
-target_link_libraries(stable_fluids_core PUBLIC glad glfw OpenGL::GL)
+target_link_libraries(stable_fluids_core PUBLIC glad glfw OpenGL::GL imgui)
 target_compile_definitions(stable_fluids_core PUBLIC
     STABLE_FLUIDS_SHADER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/shaders"
 )

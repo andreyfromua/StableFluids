@@ -87,6 +87,40 @@ float bilinear(const Field2D& f, float px, float py) {
     return v0 + fy * (v1 - v0);
 }
 
+struct VelocityGradient {
+    float dudx;
+    float dudy;
+    float dvdx;
+    float dvdy;
+};
+
+struct StressTensor {
+    float xx;
+    float xy;
+    float yx;
+    float yy;
+};
+
+StressTensor cauchy_stress(const VelocityGradient& gradient,
+                           float projection_potential,
+                           float density,
+                           float kinematic_viscosity,
+                           float dt)
+{
+    const float pressure =
+        density * projection_potential / std::max(dt, 1e-6f);
+    const float dynamic_viscosity = density * kinematic_viscosity;
+    const float shear = dynamic_viscosity *
+                        (gradient.dudy + gradient.dvdx);
+
+    return {
+        -pressure + 2.0f * dynamic_viscosity * gradient.dudx,
+        shear,
+        shear,
+        -pressure + 2.0f * dynamic_viscosity * gradient.dvdy,
+    };
+}
+
 }  // namespace
 
 // ---------------------------------------------------------------------------
@@ -177,6 +211,53 @@ TEST(midpoint_backtrace_with_uniform_velocity) {
     auto [x, y] = trace(2.0f, 2.0f, 1.0f, 0.0f, 1.0f);
     EXPECT_NEAR(x, 1.0f, 1e-6f);
     EXPECT_NEAR(y, 2.0f, 1e-6f);
+}
+
+TEST(cauchy_stress_is_zero_for_uniform_zero_pressure_flow) {
+    const StressTensor sigma =
+        cauchy_stress({0.0f, 0.0f, 0.0f, 0.0f},
+                       0.0f, 1.0f, 0.5f, 1.0f / 60.0f);
+
+    EXPECT_NEAR(sigma.xx, 0.0f, 1e-6f);
+    EXPECT_NEAR(sigma.xy, 0.0f, 1e-6f);
+    EXPECT_NEAR(sigma.yx, 0.0f, 1e-6f);
+    EXPECT_NEAR(sigma.yy, 0.0f, 1e-6f);
+}
+
+TEST(cauchy_stress_reconstructs_projection_pressure) {
+    // p = rho * phi / dt = 2 * 0.25 / 0.5 = 1.
+    const StressTensor sigma =
+        cauchy_stress({0.0f, 0.0f, 0.0f, 0.0f},
+                       0.25f, 2.0f, 0.0f, 0.5f);
+
+    EXPECT_NEAR(sigma.xx, -1.0f, 1e-6f);
+    EXPECT_NEAR(sigma.xy,  0.0f, 1e-6f);
+    EXPECT_NEAR(sigma.yx,  0.0f, 1e-6f);
+    EXPECT_NEAR(sigma.yy, -1.0f, 1e-6f);
+}
+
+TEST(cauchy_stress_computes_symmetric_shear) {
+    // mu = rho * nu = 2 * 0.25 = 0.5, so sigma_xy = 0.5 * 2 = 1.
+    const StressTensor sigma =
+        cauchy_stress({0.0f, 2.0f, 0.0f, 0.0f},
+                       0.0f, 2.0f, 0.25f, 1.0f);
+
+    EXPECT_NEAR(sigma.xx, 0.0f, 1e-6f);
+    EXPECT_NEAR(sigma.xy, 1.0f, 1e-6f);
+    EXPECT_NEAR(sigma.yx, sigma.xy, 1e-6f);
+    EXPECT_NEAR(sigma.yy, 0.0f, 1e-6f);
+}
+
+TEST(cauchy_stress_computes_extensional_normal_components) {
+    // Incompressible extension: du/dx = 1, dv/dy = -1, mu = 0.5.
+    const StressTensor sigma =
+        cauchy_stress({1.0f, 0.0f, 0.0f, -1.0f},
+                       0.0f, 1.0f, 0.5f, 1.0f);
+
+    EXPECT_NEAR(sigma.xx,  1.0f, 1e-6f);
+    EXPECT_NEAR(sigma.xy,  0.0f, 1e-6f);
+    EXPECT_NEAR(sigma.yx,  0.0f, 1e-6f);
+    EXPECT_NEAR(sigma.yy, -1.0f, 1e-6f);
 }
 
 int main() {

@@ -30,10 +30,6 @@ void main() {
     int jb = max(j - 1, 0);
     int jt = min(j + 1, u_grid_size.y - 1);
 
-    float uc_l = 0.5 * (texelFetch(u_u, ivec2(il,     j), 0).r +
-                        texelFetch(u_u, ivec2(il + 1, j), 0).r);
-    float uc_r = 0.5 * (texelFetch(u_u, ivec2(ir,     j), 0).r +
-                        texelFetch(u_u, ivec2(ir + 1, j), 0).r);
     float uc_b = 0.5 * (texelFetch(u_u, ivec2(i,     jb), 0).r +
                         texelFetch(u_u, ivec2(i + 1, jb), 0).r);
     float uc_t = 0.5 * (texelFetch(u_u, ivec2(i,     jt), 0).r +
@@ -43,8 +39,12 @@ void main() {
     float vc_r = 0.5 * (texelFetch(u_v, ivec2(ir, j    ), 0).r +
                         texelFetch(u_v, ivec2(ir, j + 1), 0).r);
 
-    float dudy = 0.5 * (uc_t - uc_b);
-    float dvdx = 0.5 * (vc_r - vc_l);
+    // The clamped neighbor span is two cells in the interior and one cell at
+    // a domain edge, naturally switching to a one-sided boundary derivative.
+    float dy = float(max(jt - jb, 1));
+    float dx = float(max(ir - il, 1));
+    float dudy = (uc_t - uc_b) / dy;
+    float dvdx = (vc_r - vc_l) / dx;
 
     frag_color = vec4(dudx, dudy, dvdx, dvdy);
 }

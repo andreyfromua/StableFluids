@@ -10,6 +10,7 @@ resources, input, timing, and pass scheduling.
 
 ## Features (baseline)
 
+- Dear ImGui control panel for live solver, source, and display settings
 - MAC grid with face-centered velocity components
 - Mouse-driven injection of smoke, dye, temperature, and momentum
 - Buoyancy and optional vorticity confinement
@@ -18,7 +19,7 @@ resources, input, timing, and pass scheduling.
 - Midpoint semi-Lagrangian advection on staggered and cell-centered fields
 - Closed free-slip walls
 - Multiple diagnostic views (smoke, dye, velocity, pressure, divergence,
-  temperature, vorticity, solid mask)
+  temperature, vorticity, solid mask, Cauchy stress)
 
 ## Build
 
@@ -41,8 +42,27 @@ cmake --build build -j
 
 OpenGL 4.1 Core is requested for cross-platform compatibility (Linux, macOS,
 and Windows).  GLFW is discovered with `find_package` first and fetched from
-GitHub if no installed copy is found.  GLAD is committed in
+GitHub if no installed copy is found. Dear ImGui is fetched at the pinned
+`v1.92.8` release, or a local source tree can be supplied with
+`-DSTABLE_FLUIDS_IMGUI_SOURCE_DIR=/path/to/imgui`. GLAD is committed in
 `third_party/glad/` so no code-generation step is required.
+
+## Control panel
+
+The on-screen Dear ImGui panel provides live controls for:
+
+- Display mode
+- Stress quantity, color scale, and fluid density
+- Pause, single-step, reset, and shader reload
+- Pressure iterations, substeps, and timestep
+- Buoyancy parameters
+- Velocity diffusion and viscosity
+- Vorticity confinement
+- Emitter radius and source strengths
+- Smoke and temperature dissipation
+
+Mouse and keyboard input captured by the panel is not forwarded to fluid
+injection or simulator shortcuts.
 
 ## Controls
 
@@ -53,7 +73,7 @@ GitHub if no installed copy is found.  GLAD is committed in
 | `Space` | Pause / resume |
 | `.` | Single-step (while paused) |
 | `R` | Reset |
-| `1`..`8` | Smoke / Dye / Velocity / Pressure / Divergence / Temperature / Vorticity / Solid mask |
+| `1`..`9` | Smoke / Dye / Velocity / Pressure / Divergence / Temperature / Vorticity / Solid mask / Stress |
 | `B` | Toggle buoyancy |
 | `V` | Toggle vorticity confinement |
 | `D` | Toggle velocity diffusion |
@@ -97,6 +117,14 @@ The simulator implements the substep pipeline described in the plan:
 7. Advect each face-velocity component (midpoint semi-Lagrangian).
 8. Second pressure projection.
 9. Advect smoke, dye, and temperature with optional dissipation / relaxation.
+
+The stress view is generated on demand after the final projection. A
+cell-centered gradient pass computes
+`(du/dx, du/dy, dv/dx, dv/dy)`, then a second pass constructs the Newtonian
+Cauchy tensor `sigma = -p I + 2 mu D`. The UI can display von Mises magnitude,
+individual normal or shear components, or hydrostatic pressure. This tensor is
+a diagnostic reconstruction; pressure projection and velocity diffusion
+already apply its effects to the simulated velocity.
 
 The diffusion pass is intentionally simplified to a "rolling-RHS" Jacobi: the
 right-hand side is sampled from the most recent iterate. The fixed point is

@@ -14,6 +14,17 @@ enum class ViewMode : int {
     Temperature = 5,
     Vorticity  = 6,
     SolidMask  = 7,
+    Stress     = 8,
+    Count
+};
+
+/// Scalar quantity extracted from the per-cell 2x2 Cauchy stress tensor.
+enum class StressDisplayMode : int {
+    VonMises    = 0,
+    SigmaXX     = 1,
+    SigmaYY     = 2,
+    SigmaXY     = 3,
+    Hydrostatic = 4,
     Count
 };
 
@@ -34,6 +45,7 @@ struct SimulationConfig {
     float ambient_temperature        = 0.0f;
     float smoke_dissipation_rate     = 0.20f; // per second
     float temperature_dissipation    = 0.40f; // per second toward ambient
+    float fluid_density              = 1.0f;  // used to reconstruct stress
 
     // Solver knobs.
     int   pressure_iterations        = 40;
@@ -58,6 +70,8 @@ struct SimulationConfig {
 
     // Initial view.
     ViewMode view_mode               = ViewMode::Smoke;
+    StressDisplayMode stress_display_mode = StressDisplayMode::VonMises;
+    float stress_display_scale       = 0.02f;
 };
 
 }  // namespace stable_fluids

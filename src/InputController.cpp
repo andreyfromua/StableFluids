@@ -75,7 +75,7 @@ void InputController::cursor_to_cells(double cursor_x, double cursor_y,
 
 void InputController::update(float dt) {
     // Compute drag velocity in cells/second based on cursor movement.
-    if (cursor_inside_ && !first_motion_ && dt > 1e-6f) {
+    if (!ui_capture_mouse_ && cursor_inside_ && !first_motion_ && dt > 1e-6f) {
         float cx0, cy0, cx1, cy1;
         cursor_to_cells(prev_cursor_x_, prev_cursor_y_, cx0, cy0);
         cursor_to_cells(cur_cursor_x_,  cur_cursor_y_,  cx1, cy1);
@@ -95,7 +95,9 @@ void InputController::update(float dt) {
 
 EmitterPulse InputController::make_emitter() const {
     EmitterPulse e;
-    if (!cursor_inside_ || (!left_down_ && !right_down_)) {
+    if (ui_capture_mouse_ ||
+        !cursor_inside_ ||
+        (!left_down_ && !right_down_)) {
         return e;
     }
 
@@ -130,6 +132,7 @@ EmitterPulse InputController::make_emitter() const {
 
 void InputController::on_key(int key, int action, int /*mods*/) {
     if (action != GLFW_PRESS) return;
+    if (ui_capture_keyboard_) return;
 
     switch (key) {
         case GLFW_KEY_ESCAPE:
@@ -176,20 +179,38 @@ void InputController::on_key(int key, int action, int /*mods*/) {
         case GLFW_KEY_6: app_.set_view_mode(ViewMode::Temperature); break;
         case GLFW_KEY_7: app_.set_view_mode(ViewMode::Vorticity);   break;
         case GLFW_KEY_8: app_.set_view_mode(ViewMode::SolidMask);   break;
+        case GLFW_KEY_9: app_.set_view_mode(ViewMode::Stress);      break;
         default: break;
     }
 }
 
 void InputController::on_mouse_button(int button, int action, int /*mods*/) {
-    bool down = (action == GLFW_PRESS);
-    if (button == GLFW_MOUSE_BUTTON_LEFT)  left_down_  = down;
-    if (button == GLFW_MOUSE_BUTTON_RIGHT) right_down_ = down;
+    if (action == GLFW_RELEASE) {
+        if (button == GLFW_MOUSE_BUTTON_LEFT)  left_down_  = false;
+        if (button == GLFW_MOUSE_BUTTON_RIGHT) right_down_ = false;
+        return;
+    }
+
+    if (ui_capture_mouse_ || action != GLFW_PRESS) {
+        return;
+    }
+    if (button == GLFW_MOUSE_BUTTON_LEFT)  left_down_  = true;
+    if (button == GLFW_MOUSE_BUTTON_RIGHT) right_down_ = true;
 }
 
 void InputController::on_cursor(double x, double y) {
     cur_cursor_x_ = x;
     cur_cursor_y_ = y;
     cursor_inside_ = true;
+}
+
+void InputController::set_ui_capture(bool mouse, bool keyboard) {
+    ui_capture_mouse_ = mouse;
+    ui_capture_keyboard_ = keyboard;
+    if (ui_capture_mouse_) {
+        drag_velocity_x_ = 0.0f;
+        drag_velocity_y_ = 0.0f;
+    }
 }
 
 }  // namespace stable_fluids

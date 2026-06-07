@@ -58,6 +58,18 @@ TextureSpec dye_spec(int width, int height) {
     return spec;
 }
 
+TextureSpec tensor_spec(int width, int height) {
+    TextureSpec spec;
+    spec.width            = width;
+    spec.height           = height;
+    spec.internal_format  = GL_RGBA32F;
+    spec.format           = GL_RGBA;
+    spec.type             = GL_FLOAT;
+    spec.min_filter       = GL_NEAREST;
+    spec.mag_filter       = GL_NEAREST;
+    return spec;
+}
+
 TextureSpec mask_spec(int width, int height) {
     // Use a normalized R8 texture so it can be sampled as a float in shaders
     // and so it works as a color attachment on all GL 4.1 implementations.
@@ -86,6 +98,8 @@ FluidGrid::FluidGrid(int nx, int ny)
     , temperature_(scalar_spec(nx, ny, true))
     , solid_mask_(mask_spec(nx, ny))
     , vorticity_(scalar_spec(nx, ny, false))
+    , velocity_gradient_(tensor_spec(nx, ny))
+    , stress_(tensor_spec(nx, ny))
 {
     reset();
 }
@@ -99,6 +113,8 @@ void FluidGrid::reset() {
     dye_.clear();
     temperature_.clear();
     vorticity_.clear_to_zero();
+    velocity_gradient_.clear_to_zero();
+    stress_.clear_to_zero();
     initialize_solid_mask();
 }
 

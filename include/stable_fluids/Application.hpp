@@ -5,6 +5,7 @@
 #include "stable_fluids/InputController.hpp"
 #include "stable_fluids/Renderer.hpp"
 #include "stable_fluids/SimulationConfig.hpp"
+#include "stable_fluids/UserInterface.hpp"
 
 #include <memory>
 #include <string>
@@ -55,6 +56,7 @@ private:
     std::unique_ptr<FluidSolver>     solver_;
     std::unique_ptr<Renderer>        renderer_;
     std::unique_ptr<InputController> input_;
+    std::unique_ptr<UserInterface>   ui_;
 
     bool request_reset_         = false;
     bool request_shader_reload_ = false;

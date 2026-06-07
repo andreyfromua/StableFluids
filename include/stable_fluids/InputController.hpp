@@ -27,9 +27,16 @@ public:
     void on_mouse_button(int button, int action, int mods);
     void on_cursor(double x, double y);
 
+    void set_ui_capture(bool mouse, bool keyboard);
+
     bool paused()   const { return paused_; }
     bool step_one() const { return step_one_; }
     void consume_step_one() { step_one_ = false; }
+    void set_paused(bool paused) { paused_ = paused; }
+    void request_step_one() {
+        paused_ = true;
+        step_one_ = true;
+    }
 
 private:
     GLFWwindow*       window_;
@@ -47,6 +54,8 @@ private:
 
     bool   left_down_  = false;
     bool   right_down_ = false;
+    bool   ui_capture_mouse_    = false;
+    bool   ui_capture_keyboard_ = false;
 
     // Velocity averaged over the most recent input frame, in cells/second.
     float  drag_velocity_x_ = 0.0f;

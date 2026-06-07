@@ -10,8 +10,8 @@ namespace stable_fluids {
 /// The grid has Nx*Ny cells.  Horizontal velocity `u` lives on vertical
 /// faces, so it is sized (Nx+1) x Ny.  Vertical velocity `v` lives on
 /// horizontal faces, so it is sized Nx x (Ny+1).  Pressure, divergence,
-/// smoke, dye, temperature, mask, and vorticity share cell-centered
-/// dimensions Nx x Ny.
+/// smoke, dye, temperature, mask, vorticity, gradient, and stress share
+/// cell-centered dimensions Nx x Ny.
 class FluidGrid {
 public:
     FluidGrid(int nx, int ny);
@@ -33,9 +33,13 @@ public:
     Texture2D& divergence()    { return divergence_; }
     Texture2D& solid_mask()    { return solid_mask_; }
     Texture2D& vorticity()     { return vorticity_; }
+    Texture2D& velocity_gradient() { return velocity_gradient_; }
+    Texture2D& stress()        { return stress_; }
     const Texture2D& divergence()  const { return divergence_; }
     const Texture2D& solid_mask()  const { return solid_mask_; }
     const Texture2D& vorticity()   const { return vorticity_; }
+    const Texture2D& velocity_gradient() const { return velocity_gradient_; }
+    const Texture2D& stress()      const { return stress_; }
 
     // Scalars (ping-pong).
     PingPongField& smoke()       { return smoke_; }
@@ -66,6 +70,8 @@ private:
 
     Texture2D     solid_mask_;
     Texture2D     vorticity_;
+    Texture2D     velocity_gradient_;
+    Texture2D     stress_;
 };
 
 }  // namespace stable_fluids

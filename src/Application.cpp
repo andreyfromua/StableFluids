@@ -33,6 +33,7 @@ Application::Application(SimulationConfig config) : config_(std::move(config)) {
 
 Application::~Application() {
     // Subsystems are destroyed before the GL context.
+    ui_.reset();
     input_.reset();
     renderer_.reset();
     solver_.reset();
@@ -116,6 +117,7 @@ void Application::create_subsystems() {
     solver_   = std::make_unique<FluidSolver>(*grid_, config_, STABLE_FLUIDS_SHADER_DIR);
     renderer_ = std::make_unique<Renderer>(STABLE_FLUIDS_SHADER_DIR);
     input_    = std::make_unique<InputController>(window_, config_, *this);
+    ui_       = std::make_unique<UserInterface>(window_);
 }
 
 void Application::on_framebuffer_size(int width, int height) {
@@ -150,6 +152,31 @@ void Application::main_loop() {
 
         if (frame_dt > 0.1f) frame_dt = 0.1f;  // clamp after pauses
 
+        ui_->begin_frame();
+        UiActions ui_actions =
+            ui_->draw_controls(config_, input_->paused(), frame_dt,
+                               fb_width_, fb_height_);
+        input_->set_ui_capture(ui_->wants_capture_mouse(),
+                               ui_->wants_capture_keyboard());
+
+        if (ui_actions.pause_changed) {
+            input_->set_paused(ui_actions.paused);
+        }
+        if (ui_actions.single_step) {
+            input_->request_step_one();
+        }
+        if (ui_actions.reload_shaders) {
+            std::fputs("Reloading shaders...\n", stdout);
+            solver_->reload_shaders();
+            renderer_->reload_shaders();
+        }
+        if (ui_actions.reset) {
+            grid_->reset();
+        }
+
+        // Diagnostics also consume the latest UI-controlled parameters while
+        // the simulation is paused.
+        solver_->config() = config_;
         input_->update(frame_dt);
 
         const bool should_step = !input_->paused() || input_->step_one();
@@ -163,9 +190,6 @@ void Application::main_loop() {
             int   subs = std::max(1, config_.substeps_per_frame);
             float h    = dt / float(subs);
 
-            // Solver picks up the latest config every step (cheap).
-            solver_->config() = config_;
-
             EmitterPulse pulse = input_->make_emitter();
             for (int s = 0; s < subs; ++s) {
                 solver_->step(h, pulse);
@@ -176,11 +200,13 @@ void Application::main_loop() {
         switch (config_.view_mode) {
             case ViewMode::Vorticity:   solver_->compute_vorticity();           break;
             case ViewMode::Divergence:  solver_->compute_divergence_into_grid(); break;
+            case ViewMode::Stress:      solver_->compute_stress();               break;
             default: break;
         }
 
         renderer_->render(*grid_, config_.view_mode,
                           fb_width_, fb_height_, config_);
+        ui_->render();
         glfwSwapBuffers(window_);
 
         ++frames_since_title;
