@@ -25,30 +25,44 @@ InputController::InputController(GLFWwindow* window,
 void InputController::cursor_to_cells(double cursor_x, double cursor_y,
                                       float& cell_x, float& cell_y) const
 {
-    int win_w = app_.framebuffer_width();
-    int win_h = app_.framebuffer_height();
-    if (win_w <= 0 || win_h <= 0) {
+    const int framebuffer_w = app_.framebuffer_width();
+    const int framebuffer_h = app_.framebuffer_height();
+
+    int window_w = 0;
+    int window_h = 0;
+    glfwGetWindowSize(window_, &window_w, &window_h);
+
+    if (window_w <= 0 || window_h <= 0 ||
+        framebuffer_w <= 0 || framebuffer_h <= 0) {
         cell_x = cell_y = -1.0f;
         return;
     }
 
+    // GLFW reports cursor positions in logical window coordinates, while
+    // OpenGL viewports use framebuffer pixels. They differ on high-DPI
+    // displays, so convert before comparing against the rendered viewport.
+    const double framebuffer_x =
+        cursor_x * double(framebuffer_w) / double(window_w);
+    const double framebuffer_y =
+        cursor_y * double(framebuffer_h) / double(window_h);
+
     // Match the renderer's aspect-preserved viewport.
     const float grid_aspect   = float(config_.grid_width)  / float(config_.grid_height);
-    const float window_aspect = float(win_w) / float(win_h);
+    const float window_aspect = float(framebuffer_w) / float(framebuffer_h);
 
-    int vp_w = win_w;
-    int vp_h = win_h;
+    int vp_w = framebuffer_w;
+    int vp_h = framebuffer_h;
     if (window_aspect > grid_aspect) {
-        vp_w = int(win_h * grid_aspect);
+        vp_w = int(float(framebuffer_h) * grid_aspect);
     } else {
-        vp_h = int(win_w / grid_aspect);
+        vp_h = int(float(framebuffer_w) / grid_aspect);
     }
-    int vp_x = (win_w - vp_w) / 2;
-    int vp_y = (win_h - vp_h) / 2;
+    const int vp_x = (framebuffer_w - vp_w) / 2;
+    const int vp_y = (framebuffer_h - vp_h) / 2;
 
     // GLFW cursor origin is top-left; OpenGL viewport is bottom-left.
-    double px = cursor_x - vp_x;
-    double py = (win_h - cursor_y) - vp_y;
+    const double px = framebuffer_x - vp_x;
+    const double py = (double(framebuffer_h) - framebuffer_y) - vp_y;
 
     if (px < 0 || py < 0 || px >= vp_w || py >= vp_h) {
         cell_x = cell_y = -1.0f;
@@ -99,8 +113,8 @@ EmitterPulse InputController::make_emitter() const {
     if (left_down_) {
         e.smoke = config_.smoke_injection_rate;
         // Cycle a colour from the cursor position so the dye isn't monotone.
-        float angle = std::atan2(cy - 0.5f * config_.grid_height,
-                                 cx - 0.5f * config_.grid_width);
+        float angle = std::atan2(cy - 0.5f * float(config_.grid_height),
+                                 cx - 0.5f * float(config_.grid_width));
         e.dye_r = 0.5f + 0.5f * std::cos(angle);
         e.dye_g = 0.5f + 0.5f * std::cos(angle + 2.094f);
         e.dye_b = 0.5f + 0.5f * std::cos(angle + 4.189f);

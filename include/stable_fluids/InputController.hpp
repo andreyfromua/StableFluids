@@ -36,7 +36,8 @@ private:
     SimulationConfig& config_;
     Application&      app_;
 
-    // Mouse state in *cell* coordinates, computed from the cursor position.
+    // Raw GLFW cursor positions in logical window coordinates. They are
+    // converted to framebuffer pixels and then to grid-cell coordinates.
     double prev_cursor_x_ = 0.0;
     double prev_cursor_y_ = 0.0;
     double cur_cursor_x_  = 0.0;
