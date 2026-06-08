@@ -30,6 +30,10 @@ private:
     void render_dye  (const FluidGrid& grid, const SimulationConfig& cfg);
     void render_velocity(const FluidGrid& grid);
     void render_stress(const FluidGrid& grid, const SimulationConfig& cfg);
+    void render_velocity_overlay(const FluidGrid& grid,
+                                 const SimulationConfig& cfg,
+                                 int viewport_width,
+                                 int viewport_height);
     void render_scalar (const Texture2D& tex, float scale, float offset, bool signed_map);
 
     std::string shader_dir_;
@@ -40,6 +44,7 @@ private:
     ShaderProgram scalar_prog_;
     ShaderProgram velocity_prog_;
     ShaderProgram stress_prog_;
+    ShaderProgram velocity_overlay_prog_;
 };
 
 }  // namespace stable_fluids

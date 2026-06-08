@@ -20,6 +20,7 @@ resources, input, timing, and pass scheduling.
 - Closed free-slip walls
 - Multiple diagnostic views (smoke, dye, velocity, pressure, divergence,
   temperature, vorticity, solid mask, Cauchy stress)
+- Optional MAC-grid overlay with sampled face-velocity arrows
 
 ## Build
 
@@ -53,6 +54,7 @@ The on-screen Dear ImGui panel provides live controls for:
 
 - Display mode
 - Stress quantity, color scale, and fluid density
+- MAC velocity overlay, sample spacing, and arrow scale
 - Pause, single-step, reset, and shader reload
 - Pressure iterations, substeps, and timestep
 - Buoyancy parameters
@@ -63,6 +65,13 @@ The on-screen Dear ImGui panel provides live controls for:
 
 Mouse and keyboard input captured by the panel is not forwarded to fluid
 injection or simulator shortcuts.
+
+The **MAC velocity overlay** can be enabled over any display mode. Its sample
+grid groups the full-resolution simulation into readable blocks. Cyan arrows
+show horizontal `u` samples on each block's left and right faces; orange arrows
+show vertical `v` samples on its bottom and top faces. Shared faces are drawn
+once. The stride controls the block size, while arrow scale changes only the
+visual length and does not modify the simulation.
 
 ## Controls
 

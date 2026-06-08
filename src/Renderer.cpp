@@ -1,5 +1,6 @@
 #include "stable_fluids/Renderer.hpp"
 
+#include <algorithm>
 #include <cstdio>
 
 namespace stable_fluids {
@@ -26,6 +27,8 @@ bool Renderer::reload_shaders() {
     ok &= scalar_prog_  .load(shader_dir_, "fullscreen.vert", "render_scalar.frag");
     ok &= velocity_prog_.load(shader_dir_, "fullscreen.vert", "render_velocity.frag");
     ok &= stress_prog_  .load(shader_dir_, "fullscreen.vert", "render_stress.frag");
+    ok &= velocity_overlay_prog_.load(
+        shader_dir_, "velocity_overlay.vert", "velocity_overlay.frag");
     return ok;
 }
 
@@ -71,6 +74,10 @@ void Renderer::render(const FluidGrid& grid,
         case ViewMode::Stress:       render_stress(grid, config);                                    break;
         default: break;
     }
+
+    if (config.velocity_overlay_enabled) {
+        render_velocity_overlay(grid, config, vp_w, vp_h);
+    }
 }
 
 void Renderer::render_smoke(const FluidGrid& grid, const SimulationConfig& /*cfg*/) {
@@ -112,6 +119,47 @@ void Renderer::render_stress(const FluidGrid& grid,
                          static_cast<int>(config.stress_display_mode));
     stress_prog_.set_float("u_scale", config.stress_display_scale);
     glDrawArrays(GL_TRIANGLES, 0, 3);
+}
+
+void Renderer::render_velocity_overlay(const FluidGrid& grid,
+                                       const SimulationConfig& config,
+                                       int viewport_width,
+                                       int viewport_height)
+{
+    const int stride = std::max(1, config.velocity_overlay_stride);
+    const int samples_x = (grid.nx() + stride - 1) / stride;
+    const int samples_y = (grid.ny() + stride - 1) / stride;
+
+    velocity_overlay_prog_.use();
+    grid.u().read().bind(0);
+    grid.v().read().bind(1);
+    velocity_overlay_prog_.set_int("u_u", 0);
+    velocity_overlay_prog_.set_int("u_v", 1);
+    velocity_overlay_prog_.set_ivec2("u_grid_size", grid.nx(), grid.ny());
+    velocity_overlay_prog_.set_ivec2("u_sample_count",
+                                     samples_x, samples_y);
+    velocity_overlay_prog_.set_ivec2("u_viewport_size",
+                                     viewport_width, viewport_height);
+    velocity_overlay_prog_.set_int("u_stride", stride);
+    velocity_overlay_prog_.set_float("u_vector_scale",
+                                     config.velocity_overlay_scale);
+
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    if (config.velocity_overlay_grid) {
+        velocity_overlay_prog_.set_int("u_pass", 0);
+        const int grid_line_count = samples_x + samples_y + 2;
+        glDrawArraysInstanced(GL_TRIANGLES, 0, 6, grid_line_count);
+    }
+
+    velocity_overlay_prog_.set_int("u_pass", 1);
+    const int horizontal_face_count = (samples_x + 1) * samples_y;
+    const int vertical_face_count = samples_x * (samples_y + 1);
+    const int arrow_count = horizontal_face_count + vertical_face_count;
+    glDrawArraysInstanced(GL_TRIANGLES, 0, 9, arrow_count);
+
+    glDisable(GL_BLEND);
 }
 
 void Renderer::render_scalar(const Texture2D& tex, float scale, float offset, bool signed_map) {

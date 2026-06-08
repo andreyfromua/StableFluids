@@ -72,6 +72,12 @@ struct SimulationConfig {
     ViewMode view_mode               = ViewMode::Smoke;
     StressDisplayMode stress_display_mode = StressDisplayMode::VonMises;
     float stress_display_scale       = 0.02f;
+
+    // MAC-grid debugging overlay.
+    bool  velocity_overlay_enabled   = false;
+    bool  velocity_overlay_grid      = true;
+    int   velocity_overlay_stride    = 16;
+    float velocity_overlay_scale     = 0.25f;
 };
 
 }  // namespace stable_fluids

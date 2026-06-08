@@ -148,6 +148,22 @@ UiActions UserInterface::draw_controls(SimulationConfig& config,
                 "Velocity diffusion is off, so viscous stress is zero.");
         }
     }
+    ImGui::Checkbox("MAC velocity overlay",
+                    &config.velocity_overlay_enabled);
+    ImGui::BeginDisabled(!config.velocity_overlay_enabled);
+    ImGui::Checkbox("Show sample grid",
+                    &config.velocity_overlay_grid);
+    ImGui::SliderInt("Velocity sample stride",
+                     &config.velocity_overlay_stride, 1, 64,
+                     "%d cells");
+    ImGui::SliderFloat("Velocity arrow scale",
+                       &config.velocity_overlay_scale,
+                       0.005f, 2.0f, "%.3f",
+                       ImGuiSliderFlags_Logarithmic);
+    ImGui::TextDisabled(
+        "Cyan: u on left/right faces.\n"
+        "Orange: v on bottom/top faces.");
+    ImGui::EndDisabled();
 
     ImGui::SeparatorText("Solver");
     ImGui::SliderInt("Pressure iterations",
