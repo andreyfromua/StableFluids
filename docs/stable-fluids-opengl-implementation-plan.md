@@ -1,0 +1,1 @@
+/Users/andrii.zaikin/src/WebSitePortfolio/content/projects/stable-fluids-opengl-implementation-plan.md

@@ -1,0 +1,1 @@
+/Users/andrii.zaikin/src/WebSitePortfolio/content/articles/stable-fluids-simulation-algorithm.md

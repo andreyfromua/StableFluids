@@ -1,5 +1,6 @@
 #pragma once
 
+#include "stable_fluids/gl/GlHeaders.hpp"
 #include "stable_fluids/PingPongField.hpp"
 #include "stable_fluids/Texture2D.hpp"
 
@@ -14,7 +15,13 @@ namespace stable_fluids {
 /// cell-centered dimensions Nx x Ny.
 class FluidGrid {
 public:
-    FluidGrid(int nx, int ny);
+    /// The velocity (u, v) fields are linearly sampled, so their storage format
+    /// is injected by the caller from the detected GraphicsCapabilities: R32F on
+    /// desktop, or R16F on a WebGL 2.0 device lacking OES_texture_float_linear.
+    /// The defaults reproduce the desktop layout (also used by the CPU tests).
+    FluidGrid(int nx, int ny,
+              GLint  velocity_internal_format = GL_R32F,
+              GLenum velocity_type            = GL_FLOAT);
 
     int nx() const noexcept { return nx_; }
     int ny() const noexcept { return ny_; }

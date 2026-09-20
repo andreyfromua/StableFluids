@@ -29,6 +29,11 @@ public:
                             float frame_dt,
                             int framebuffer_width,
                             int framebuffer_height);
+
+    /// Draw a centered, click-through "how to start" overlay. Shown until the
+    /// user first interacts (emits), then suppressed by passing visible=false.
+    void draw_hint(bool visible);
+
     void render();
 
     bool wants_capture_mouse() const;

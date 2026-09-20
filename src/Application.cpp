@@ -1,6 +1,10 @@
 #include "stable_fluids/Application.hpp"
 
-#include <glad/glad.h>
+#include "stable_fluids/gl/GlHeaders.hpp"
+#include "stable_fluids/platform/GraphicsCapabilities.hpp"
+#include "stable_fluids/platform/MainLoop.hpp"
+#include "stable_fluids/platform/Platform.hpp"
+
 #include <GLFW/glfw3.h>
 
 #include <chrono>
@@ -53,18 +57,10 @@ bool Application::initialize_glfw() {
         return false;
     }
 
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
-    glfwWindowHint(GLFW_OPENGL_PROFILE,        GLFW_OPENGL_CORE_PROFILE);
-    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GLFW_TRUE);
-#ifndef NDEBUG
-    glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GLFW_TRUE);
-#endif
-    glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
-    glfwWindowHint(GLFW_SRGB_CAPABLE, GLFW_FALSE);
+    platform::apply_gl_window_hints();
 
     window_ = glfwCreateWindow(config_.window_width, config_.window_height,
-                               "Stable Fluids (OpenGL 4.1)", nullptr, nullptr);
+                               "Stable Fluids", nullptr, nullptr);
     if (!window_) {
         std::fprintf(stderr, "Failed to create GLFW window.\n");
         glfwTerminate();
@@ -98,10 +94,13 @@ bool Application::initialize_glfw() {
 }
 
 bool Application::initialize_gl() {
-    if (!gladLoadGLLoader(reinterpret_cast<GLADloadproc>(glfwGetProcAddress))) {
-        std::fprintf(stderr, "Failed to load OpenGL functions through GLAD.\n");
+    if (!platform::load_gl_functions()) {
         return false;
     }
+    // Turn on the float-texture extensions the web target needs, then record
+    // what the context actually supports so the grid can pick its formats.
+    platform::enable_required_extensions();
+    caps_ = GraphicsCapabilities::detect();
 
 #ifdef GL_KHR_debug
     if (glDebugMessageCallback) {
@@ -113,7 +112,9 @@ bool Application::initialize_gl() {
 }
 
 void Application::create_subsystems() {
-    grid_     = std::make_unique<FluidGrid>(config_.grid_width, config_.grid_height);
+    grid_     = std::make_unique<FluidGrid>(config_.grid_width, config_.grid_height,
+                                            caps_.velocity_internal_format(),
+                                            caps_.velocity_type());
     solver_   = std::make_unique<FluidSolver>(*grid_, config_, STABLE_FLUIDS_SHADER_DIR);
     renderer_ = std::make_unique<Renderer>(STABLE_FLUIDS_SHADER_DIR);
     input_    = std::make_unique<InputController>(window_, config_, *this);
@@ -125,114 +126,122 @@ void Application::on_framebuffer_size(int width, int height) {
     fb_height_ = height;
 }
 
-void Application::main_loop() {
+bool Application::frame() {
     using clock = std::chrono::steady_clock;
-    auto t_prev = clock::now();
 
-    int    frames_since_title = 0;
-    double seconds_since_title = 0.0;
+    glfwPollEvents();
 
-    while (!glfwWindowShouldClose(window_)) {
-        glfwPollEvents();
+    if (request_shader_reload_) {
+        std::fputs("Reloading shaders...\n", stdout);
+        solver_->reload_shaders();
+        renderer_->reload_shaders();
+        request_shader_reload_ = false;
+    }
+    if (request_reset_) {
+        grid_->reset();
+        request_reset_ = false;
+    }
 
-        if (request_shader_reload_) {
-            std::fputs("Reloading shaders...\n", stdout);
-            solver_->reload_shaders();
-            renderer_->reload_shaders();
-            request_shader_reload_ = false;
-        }
-        if (request_reset_) {
-            grid_->reset();
-            request_reset_ = false;
-        }
+    if (!timing_started_) {
+        t_prev_         = clock::now();
+        timing_started_ = true;
+    }
+    auto  t_now    = clock::now();
+    float frame_dt = std::chrono::duration<float>(t_now - t_prev_).count();
+    t_prev_        = t_now;
+    if (frame_dt > 0.1f) frame_dt = 0.1f;  // clamp after pauses / tab backgrounding
 
-        auto   t_now = clock::now();
-        float  frame_dt = std::chrono::duration<float>(t_now - t_prev).count();
-        t_prev = t_now;
+    ui_->begin_frame();
+    UiActions ui_actions =
+        ui_->draw_controls(config_, input_->paused(), frame_dt,
+                           fb_width_, fb_height_);
+    input_->set_ui_capture(ui_->wants_capture_mouse(),
+                           ui_->wants_capture_keyboard());
 
-        if (frame_dt > 0.1f) frame_dt = 0.1f;  // clamp after pauses
+    if (ui_actions.pause_changed) {
+        input_->set_paused(ui_actions.paused);
+    }
+    if (ui_actions.single_step) {
+        input_->request_step_one();
+    }
+    if (ui_actions.reload_shaders) {
+        std::fputs("Reloading shaders...\n", stdout);
+        solver_->reload_shaders();
+        renderer_->reload_shaders();
+    }
+    if (ui_actions.reset) {
+        grid_->reset();
+    }
 
-        ui_->begin_frame();
-        UiActions ui_actions =
-            ui_->draw_controls(config_, input_->paused(), frame_dt,
-                               fb_width_, fb_height_);
-        input_->set_ui_capture(ui_->wants_capture_mouse(),
-                               ui_->wants_capture_keyboard());
+    // Diagnostics also consume the latest UI-controlled parameters while
+    // the simulation is paused.
+    solver_->config() = config_;
+    input_->update(frame_dt);
 
-        if (ui_actions.pause_changed) {
-            input_->set_paused(ui_actions.paused);
-        }
-        if (ui_actions.single_step) {
-            input_->request_step_one();
-        }
-        if (ui_actions.reload_shaders) {
-            std::fputs("Reloading shaders...\n", stdout);
-            solver_->reload_shaders();
-            renderer_->reload_shaders();
-        }
-        if (ui_actions.reset) {
-            grid_->reset();
-        }
+    const bool should_step = !input_->paused() || input_->step_one();
+    if (should_step) {
+        input_->consume_step_one();
+        // Solver substep used by the plan: fixed dt for stability of the
+        // baseline. Adaptive Courant is an explicit later milestone.
+        float dt   = (config_.fixed_timestep > 0.0f)
+                       ? config_.fixed_timestep
+                       : frame_dt;
+        int   subs = std::max(1, config_.substeps_per_frame);
+        float h    = dt / float(subs);
 
-        // Diagnostics also consume the latest UI-controlled parameters while
-        // the simulation is paused.
-        solver_->config() = config_;
-        input_->update(frame_dt);
-
-        const bool should_step = !input_->paused() || input_->step_one();
-        if (should_step) {
-            input_->consume_step_one();
-            // Solver substep used by the plan: fixed dt for stability of the
-            // baseline. Adaptive Courant is an explicit later milestone.
-            float dt   = (config_.fixed_timestep > 0.0f)
-                           ? config_.fixed_timestep
-                           : frame_dt;
-            int   subs = std::max(1, config_.substeps_per_frame);
-            float h    = dt / float(subs);
-
-            EmitterPulse pulse = input_->make_emitter();
-            for (int s = 0; s < subs; ++s) {
-                solver_->step(h, pulse);
-            }
-        }
-
-        // Diagnostic computations only for currently-visible views.
-        switch (config_.view_mode) {
-            case ViewMode::Vorticity:   solver_->compute_vorticity();           break;
-            case ViewMode::Divergence:  solver_->compute_divergence_into_grid(); break;
-            case ViewMode::Stress:      solver_->compute_stress();               break;
-            default: break;
-        }
-
-        renderer_->render(*grid_, config_.view_mode,
-                          fb_width_, fb_height_, config_);
-        ui_->render();
-        glfwSwapBuffers(window_);
-
-        ++frames_since_title;
-        seconds_since_title += frame_dt;
-        if (seconds_since_title >= 0.5) {
-            char title[256];
-            double fps = frames_since_title / seconds_since_title;
-            std::snprintf(title, sizeof(title),
-                          "Stable Fluids %dx%d  |  %.1f fps  |  P=%d  |  %s%s%s",
-                          config_.grid_width, config_.grid_height,
-                          fps, config_.pressure_iterations,
-                          config_.buoyancy_enabled       ? "B " : "",
-                          config_.diffusion_enabled      ? "D " : "",
-                          config_.vorticity_confinement  ? "V " : "");
-            glfwSetWindowTitle(window_, title);
-            frames_since_title  = 0;
-            seconds_since_title = 0.0;
+        EmitterPulse pulse = input_->make_emitter();
+        if (pulse.active) user_interacted_ = true;  // dismiss the start hint
+        for (int s = 0; s < subs; ++s) {
+            solver_->step(h, pulse);
         }
     }
+
+    // Diagnostic computations only for currently-visible views.
+    switch (config_.view_mode) {
+        case ViewMode::Vorticity:   solver_->compute_vorticity();           break;
+        case ViewMode::Divergence:  solver_->compute_divergence_into_grid(); break;
+        case ViewMode::Stress:      solver_->compute_stress();               break;
+        default: break;
+    }
+
+    // First-run overlay telling the user how to start; disappears on first emit.
+    ui_->draw_hint(!user_interacted_);
+
+    renderer_->render(*grid_, config_.view_mode,
+                      fb_width_, fb_height_, config_);
+    ui_->render();
+    glfwSwapBuffers(window_);
+
+    ++frames_since_title_;
+    seconds_since_title_ += frame_dt;
+    if (seconds_since_title_ >= 0.5) {
+        char title[256];
+        double fps = frames_since_title_ / seconds_since_title_;
+        std::snprintf(title, sizeof(title),
+                      "Stable Fluids %dx%d  |  %.1f fps  |  P=%d  |  %s%s%s",
+                      config_.grid_width, config_.grid_height,
+                      fps, config_.pressure_iterations,
+                      config_.buoyancy_enabled       ? "B " : "",
+                      config_.diffusion_enabled      ? "D " : "",
+                      config_.vorticity_confinement  ? "V " : "");
+        glfwSetWindowTitle(window_, title);  // no-op in the browser
+        frames_since_title_  = 0;
+        seconds_since_title_ = 0.0;
+    }
+
+    // Desktop stops when the window closes; the browser never sets this flag.
+    return !glfwWindowShouldClose(window_);
 }
 
 int Application::run() {
     if (!initialize_glfw()) return 1;
     if (!initialize_gl())   return 2;
     create_subsystems();
-    main_loop();
+
+    // Strategy: a blocking loop on desktop, a requestAnimationFrame-driven
+    // callback in the browser. Both invoke frame() as the unit of work.
+    loop_ = MainLoop::create();
+    loop_->run([this] { return frame(); });
     return 0;
 }
 

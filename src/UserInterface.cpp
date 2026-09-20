@@ -1,5 +1,7 @@
 #include "stable_fluids/UserInterface.hpp"
 
+#include "stable_fluids/platform/GlslDialect.hpp"
+
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl3.h>
@@ -51,7 +53,7 @@ UserInterface::UserInterface(GLFWwindow* window) {
         ImGui::DestroyContext();
         return;
     }
-    if (!ImGui_ImplOpenGL3_Init("#version 410 core")) {
+    if (!ImGui_ImplOpenGL3_Init(GlslDialect::target().imgui_glsl_version())) {
         std::fprintf(stderr, "Dear ImGui: failed to initialize OpenGL backend.\n");
         ImGui_ImplGlfw_Shutdown();
         ImGui::DestroyContext();
@@ -79,6 +81,40 @@ void UserInterface::begin_frame() {
     ImGui::NewFrame();
 }
 
+void UserInterface::draw_hint(bool visible) {
+    if (!initialized_ || !visible) {
+        return;
+    }
+
+    // A centered, semi-transparent, non-interactive overlay. NoInputs lets the
+    // cursor drag "through" it so the very first emit still lands on the fluid.
+    const ImGuiIO& io = ImGui::GetIO();
+    ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f),
+                            ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+    ImGui::SetNextWindowBgAlpha(0.35f);
+
+    const ImGuiWindowFlags flags =
+        ImGuiWindowFlags_NoDecoration      | ImGuiWindowFlags_AlwaysAutoResize |
+        ImGuiWindowFlags_NoSavedSettings   | ImGuiWindowFlags_NoFocusOnAppearing |
+        ImGuiWindowFlags_NoNav             | ImGuiWindowFlags_NoMove |
+        ImGuiWindowFlags_NoInputs;
+
+    if (ImGui::Begin("##start_hint", nullptr, flags)) {
+        ImGui::SetWindowFontScale(1.35f);
+
+        auto centered_text = [](const char* text) {
+            const float avail = ImGui::GetContentRegionAvail().x;
+            const float tw    = ImGui::CalcTextSize(text).x;
+            if (tw < avail) ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (avail - tw) * 0.5f);
+            ImGui::TextUnformatted(text);
+        };
+        centered_text("Drag with the mouse to emit smoke & dye");
+        ImGui::Spacing();
+        centered_text("Right-drag to add heat");
+    }
+    ImGui::End();
+}
+
 UiActions UserInterface::draw_controls(SimulationConfig& config,
                                        bool paused,
                                        float frame_dt,
@@ -93,6 +129,10 @@ UiActions UserInterface::draw_controls(SimulationConfig& config,
 
     ImGui::SetNextWindowPos(ImVec2(12.0f, 12.0f), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSize(ImVec2(365.0f, 700.0f), ImGuiCond_FirstUseEver);
+    // Start each run with the panel collapsed to its title bar; ImGuiCond_Once
+    // forces this on the first frame (overriding any saved imgui.ini state)
+    // while still letting the user expand it during the session.
+    ImGui::SetNextWindowCollapsed(true, ImGuiCond_Once);
 
     ImGui::Begin("Stable Fluids Controls");
 

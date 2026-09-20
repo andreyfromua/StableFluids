@@ -1,6 +1,6 @@
 #pragma once
 
-#include <glad/glad.h>
+#include "stable_fluids/gl/GlHeaders.hpp"
 
 #include <string>
 #include <string_view>

@@ -6,13 +6,14 @@ namespace stable_fluids {
 
 namespace {
 
-TextureSpec velocity_spec(int width, int height) {
+TextureSpec velocity_spec(int width, int height,
+                          GLint internal_format, GLenum type) {
     TextureSpec spec;
     spec.width            = width;
     spec.height           = height;
-    spec.internal_format  = GL_R32F;
+    spec.internal_format  = internal_format;
     spec.format           = GL_RED;
-    spec.type             = GL_FLOAT;
+    spec.type             = type;
     spec.min_filter       = GL_LINEAR;
     spec.mag_filter       = GL_LINEAR;
     return spec;
@@ -86,11 +87,12 @@ TextureSpec mask_spec(int width, int height) {
 
 }  // namespace
 
-FluidGrid::FluidGrid(int nx, int ny)
+FluidGrid::FluidGrid(int nx, int ny,
+                     GLint velocity_internal_format, GLenum velocity_type)
     : nx_(nx)
     , ny_(ny)
-    , u_(velocity_spec(nx + 1, ny))
-    , v_(velocity_spec(nx, ny + 1))
+    , u_(velocity_spec(nx + 1, ny, velocity_internal_format, velocity_type))
+    , v_(velocity_spec(nx, ny + 1, velocity_internal_format, velocity_type))
     , pressure_(pressure_spec(nx, ny))
     , divergence_(divergence_spec(nx, ny))
     , smoke_(scalar_spec(nx, ny, true))

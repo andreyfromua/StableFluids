@@ -1,5 +1,7 @@
 #include "stable_fluids/ShaderProgram.hpp"
 
+#include "stable_fluids/platform/GlslDialect.hpp"
+
 #include <cstdio>
 #include <fstream>
 #include <set>
@@ -127,6 +129,12 @@ bool ShaderProgram::load(const std::string& shader_dir,
     std::string vs_src, fs_src;
     if (!expand_includes(shader_dir, vertex_file, visited_v, vs_src)) return false;
     if (!expand_includes(shader_dir, fragment_file, visited_f, fs_src)) return false;
+
+    // Rewrite the authored `#version 410 core` line into the current target's
+    // dialect (GLSL 4.10 on desktop, GLSL ES 3.00 on the web) before compiling.
+    const GlslDialect& dialect = GlslDialect::target();
+    vs_src = dialect.apply(vs_src);
+    fs_src = dialect.apply(fs_src);
 
     GLuint vs = compile_shader(GL_VERTEX_SHADER,   vs_src, vertex_file);
     if (vs == 0) return false;

@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+  <title>Stable Fluids (WebAssembly)</title>
+  <style>
+    :root { color-scheme: dark; }
+    html, body {
+      margin: 0; height: 100%;
+      background: #0b0d12; color: #cfd3dc;
+      font: 14px/1.4 system-ui, sans-serif;
+    }
+    #stage {
+      position: fixed; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+    }
+    /* Emscripten's GLFW port binds to the element with id="canvas". */
+    #canvas {
+      display: block;
+      width: 100vmin; height: 100vmin;
+      max-width: 100%; max-height: 100%;
+      touch-action: none;          /* let the app handle touch drags itself */
+      background: #0b0d12;
+      outline: none;
+    }
+    #loading {
+      position: fixed; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      flex-direction: column; gap: 12px;
+      transition: opacity .4s ease;
+    }
+    #loading.hidden { opacity: 0; pointer-events: none; }
+    .spinner {
+      width: 34px; height: 34px; border-radius: 50%;
+      border: 3px solid #2a2f3a; border-top-color: #6ea8fe;
+      animation: spin 0.9s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #error {
+      position: fixed; inset: 0; display: none;
+      align-items: center; justify-content: center; padding: 24px;
+      text-align: center; color: #ff9a9a;
+    }
+  </style>
+</head>
+<body>
+  <div id="stage">
+    <!-- oncontextmenu is suppressed so right-drag (temperature) is usable. -->
+    <canvas id="canvas" tabindex="-1" oncontextmenu="event.preventDefault()"></canvas>
+  </div>
+
+  <div id="loading"><div class="spinner"></div><div>Loading simulation…</div></div>
+  <div id="error"></div>
+
+  <script type="text/javascript">
+    var canvas = document.getElementById('canvas');
+    var loading = document.getElementById('loading');
+    var errorBox = document.getElementById('error');
+
+    function showError(message) {
+      loading.classList.add('hidden');
+      errorBox.style.display = 'flex';
+      errorBox.textContent = message;
+    }
+
+    // A lost WebGL context is the common mobile failure; surface it clearly.
+    canvas.addEventListener('webglcontextlost', function (e) {
+      e.preventDefault();
+      showError('WebGL context lost. Reload the page to restart the simulation.');
+    }, false);
+
+    window.addEventListener('error', function (e) {
+      showError('Error: ' + (e && e.message ? e.message : 'unknown'));
+    });
+
+    var Module = {
+      canvas: canvas,
+      preinitializedWebGLContext: null,
+      onRuntimeInitialized: function () {
+        loading.classList.add('hidden');
+      },
+      printErr: function (text) { console.error(text); },
+      print: function (text) { console.log(text); }
+    };
+  </script>
+
+  {{{ SCRIPT }}}
+</body>
+</html>
